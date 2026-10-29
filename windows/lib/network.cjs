@@ -58,27 +58,30 @@ function metadataFetch(input,options={}){return boundedFetch(input,{...options,g
 const entities = value => value.replace(/&(?:amp|quot|lt|gt|apos|#39|#34);/g, match => ({'&amp;':'&','&quot;':'"','&lt;':'<','&gt;':'>','&apos;':"'",'&#39;':"'",'&#34;':'"'}[match]));
 // Scans a start tag's attributes, honoring quoted values, until its closing '>'.
 // An unquoted '<' or 4096 characters without '>' ends the attempt, so a page of
-// unclosed tags costs linear work instead of a backtracking regex scan.
+// unclosed tags costs linear work instead of a backtracking regex scan. A failed
+// scan reports where it stopped, so callers can resume there instead of rescanning.
 function tagAttributes(html, start) {
-  let quote = '';
-  for (let index = start, end = Math.min(html.length, start + 4096); index < end; index++) {
+  let quote = '', index = start;
+  for (const end = Math.min(html.length, start + 4096); index < end; index++) {
     const ch = html[index];
     if (quote) { if (ch === quote) quote = ''; }
     else if (ch === '"' || ch === "'") quote = ch;
-    else if (ch === '>') return {text: html.slice(start, index), end: index + 1};
-    else if (ch === '<') return null;
+    else if (ch === '>') return {ok: true, text: html.slice(start, index), end: index + 1};
+    else if (ch === '<') break;
   }
-  return null;
+  return {ok: false, end: index};
 }
 // Uses the first title whose closing tag follows within 2000 characters, skipping
-// script, style and comment bodies so text inside them is never taken as a title.
-// Every cursor only moves forward, so the work stays linear.
+// script, style and comment bodies and every other tag's (quoted) attributes, so
+// text inside them is never taken as a title. Every cursor only moves forward, so
+// the work stays linear.
 function documentTitle(html) {
-  const tokens = /<title\b|<(script|style)\b|<!--/gi, closing = /<\/title\s*>/gi; let close = null, match;
+  const tokens = /<(title|script|style)\b|<!--|<[a-z][\w:-]*/gi, closing = /<\/title\s*>/gi; let close = null, match;
   while ((match = tokens.exec(html))) {
     if (match[0] === '<!--') { const end = html.indexOf('-->', tokens.lastIndex); if (end < 0) return ''; tokens.lastIndex = end + 3; continue; }
-    if (match[1]) { const end = new RegExp('</' + match[1] + '\\s*>', 'gi'); end.lastIndex = tokens.lastIndex; if (!end.exec(html)) return ''; tokens.lastIndex = end.lastIndex; continue; }
-    const tag = tagAttributes(html, tokens.lastIndex); if (!tag) continue;
+    if (!match[1]) { tokens.lastIndex = tagAttributes(html, tokens.lastIndex).end; continue; }
+    if (match[1].toLowerCase() !== 'title') { const end = new RegExp('</' + match[1] + '\\s*>', 'gi'); end.lastIndex = tokens.lastIndex; if (!end.exec(html)) return ''; tokens.lastIndex = end.lastIndex; continue; }
+    const tag = tagAttributes(html, tokens.lastIndex); if (!tag.ok) { tokens.lastIndex = tag.end; continue; }
     if (!close || close.index < tag.end) { closing.lastIndex = tag.end; close = closing.exec(html); if (!close) return ''; }
     if (close.index - tag.end <= 2000) return html.slice(tag.end, close.index);
   }
@@ -86,7 +89,7 @@ function documentTitle(html) {
 }
 function meta(html, name) {
   for (const match of html.matchAll(/<meta\b/gi)) {
-    const tag = tagAttributes(html, match.index + match[0].length); if (!tag) continue;
+    const tag = tagAttributes(html, match.index + match[0].length); if (!tag.ok) continue;
     const attributes = {};
     for (const attr of tag.text.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) attributes[attr[1].toLowerCase()] = attr[2] ?? attr[3];
     if ([attributes.property, attributes.name].includes(name)) return entities(attributes.content || '').slice(0, 1000);
