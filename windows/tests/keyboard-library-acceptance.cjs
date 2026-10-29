@@ -79,7 +79,7 @@ module.exports=async function keyboardLibrary({page,application,textItem,folder,
   check('all three shelf rows and every rendered quick number remain inside the window');
   await page.locator('[data-action="activate-shelf"][data-kind="text"]').click();
   await page.keyboard.press('Control+ArrowLeft');await until(focus,id=>id===fixtures.text);
-  const pageSize=await page.locator('[data-shelf="text"]').getAttribute('data-page-size');assert.ok(Number(pageSize)>0&&Number(pageSize)<=9,pageSize);
+  const pageSize=await page.locator('[data-shelf="text"]').getAttribute('data-page-size');assert.ok(Number(pageSize)>0,pageSize);
   const ordered=(await page.evaluate(()=>window.clipboardLine.state())).items.filter(item=>item.kind==='text'&&!item.trashedAt&&!item.hiddenFromShelf).sort((a,b)=>b.createdAt-a.createdAt);
   await page.keyboard.press('Alt+ArrowRight');await until(focus,id=>id===ordered[Number(pageSize)].id);
   await page.keyboard.press('Alt+ArrowLeft');await until(focus,id=>id===ordered[0].id);

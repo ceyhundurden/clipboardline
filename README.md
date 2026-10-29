@@ -146,7 +146,7 @@ These are the Windows defaults, separate from the macOS table. Control replaces 
 | `← / →` | Previous / next item | Shelves, Library and previews; the preview changes in place. |
 | `↑ / ↓` | Move between rows or items | Shelves, with or without search or preview: previous/next visible nonempty row, preserving the item column and clamping to shorter rows. Library: grid row (list: item); Library preview: previous/next result. |
 | `Ctrl+← / Ctrl+→` | First / last result | Current shelf or Library result set, including previews. |
-| `Alt+← / Alt+→` | Previous / next page | Moves by the active shelf’s visible page size, up to nine cards, based on window width and card size. Library still jumps nine results. Works in previews. |
+| `Alt+← / Alt+→` | Previous / next page | Moves by the active shelf’s visible page size: as many cards as fit the window width at the current card size (numbers 1–9 label the first nine). The mouse wheel or trackpad slides a shelf one card at a time. Library still jumps nine results. Works in previews. |
 | `Tab / Shift+Tab` | Cycle active shelf | Both cycle in the same direction. Shelves and shelf-origin previews; dialogs use normal focus traversal. |
 | `1–9` | Choose numbered card | Choose an available numbered card on the active shelf’s visible page, up to nine; outside preview. |
 | `Shift+← / Shift+→ / Shift+↑ / Shift+↓` | Extend selection | While browsing shelves or Library; text fields keep normal editing. |
