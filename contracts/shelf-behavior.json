@@ -1570,6 +1570,28 @@
           }
         }
       ]
+    },
+    {
+      "id": "default-presentation-opens-images-only",
+      "itemSet": "standard",
+      "visibleKinds": null,
+      "pinnedOnlyKinds": [],
+      "steps": [
+        {
+          "action": "open",
+          "expect": {
+            "activeKind": "image",
+            "focused": "i1",
+            "selected": [
+              "i1"
+            ],
+            "visibleKinds": [
+              "image"
+            ],
+            "searchEditing": false
+          }
+        }
+      ]
     }
   ]
 }

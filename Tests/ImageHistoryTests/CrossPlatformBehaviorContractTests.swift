@@ -70,8 +70,11 @@ import XCTest
             }
             let line = Line(defaults: fixture.defaults, inbox: fixture.inbox, now: { fixture.date }, breeze: false,
                 copyImage: { _ in }, copyText: { _ in }, library: store)
-            let visible = try required(scenario["visibleKinds"], [String].self).map { try shelf($0) }
-            line.setPresentation(try XCTUnwrap(ShelfPresentation.containing(Set(visible))), requestFocus: false)
+            // A null visibleKinds keeps the Line's own default presentation.
+            if !(scenario["visibleKinds"] is NSNull) {
+                let visible = try required(scenario["visibleKinds"], [String].self).map { try shelf($0) }
+                line.setPresentation(try XCTUnwrap(ShelfPresentation.containing(Set(visible))), requestFocus: false)
+            }
             for kind in try required(scenario["pinnedOnlyKinds"], [String].self) {
                 switch try shelf(kind) { case .images: line.setFavoritesOnly(true); case .texts: line.texts.setFavoritesOnly(true); case .links: line.links.setFavoritesOnly(true) }
             }

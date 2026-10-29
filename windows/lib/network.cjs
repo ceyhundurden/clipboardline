@@ -70,11 +70,14 @@ function tagAttributes(html, start) {
   }
   return null;
 }
+// Uses the first title whose closing tag follows within 2000 characters. Start
+// tags and the closing-tag cursor both only move forward, so the work stays linear.
 function documentTitle(html) {
+  const closing = /<\/title\s*>/gi; let close = null;
   for (const match of html.matchAll(/<title\b/gi)) {
     const tag = tagAttributes(html, match.index + match[0].length); if (!tag) continue;
-    const close = /<\/title\s*>/i.exec(html.slice(tag.end, tag.end + 2016));
-    return close && close.index <= 2000 ? html.slice(tag.end, tag.end + close.index) : '';
+    if (!close || close.index < tag.end) { closing.lastIndex = tag.end; close = closing.exec(html); if (!close) return ''; }
+    if (close.index - tag.end <= 2000) return html.slice(tag.end, close.index);
   }
   return '';
 }

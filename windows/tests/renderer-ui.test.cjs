@@ -342,7 +342,7 @@ test('shared macOS/Windows shelf contract runs through actual renderer handlers'
    const source=f.state.items.find(value=>value.kind===entry.kind);
    return{...structuredClone(source),id,createdAt:10000-index,name:entry.kind==='image'?entry.text:'',text:entry.kind==='text'?entry.text:'',title:entry.kind==='link'?entry.text:'',url:entry.kind==='link'?'https://example.com/contract/'+entry.id:''};
   });
-  f.api.emit({items:values,settings:{...f.state.settings,visibleKinds:scenario.visibleKinds}});await f.ready();
+  f.api.emit({items:values,settings:{...f.state.settings,visibleKinds:scenario.visibleKinds??require('../lib/model.cjs').DEFAULTS.visibleKinds}});await f.ready();
   for(const kind of scenario.pinnedOnlyKinds||[])await f.click('pinned-kind',{kind});
   await f.api.command('hide');await f.ready();
   for(let index=0;index<scenario.steps.length;index++){
