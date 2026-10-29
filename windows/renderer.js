@@ -675,7 +675,9 @@ case 'actions':openModal({type:'actions',query:'',index:0,contextIds:[...ids],co
 case 'search':releaseShortcutRecording(ui.modal);ui.modal=null;if(ui.view==='settings')await command('show');if(ui.view!=='library')ui.searchOpen=true;ui.searchEditing=true;render();setTimeout(()=>document.getElementById('search-input')?.focus(),0);break;
 case 'librarySearch':if(ui.view==='library'){const field=document.getElementById('search-input');field?.focus();field?.select?.();}break;
 case 'selectAll':ui.selected=new Set(currentItems().map(value=>value.id));render();break;
-case 'switchShelf':{if(!await flushPreview())break;ui.editor=null;const kinds=visibleKinds();ui.active=kinds[(kinds.indexOf(ui.active)+1)%kinds.length];const first=rowItems(ui.active)[0];select(first);if(ui.preview)ui.preview=first?.id||null;ui.zoom=1;ui.pan={x:0,y:0};render();break;}
+case 'switchShelf':{if(!await flushPreview())break;ui.editor=null;const kinds=visibleKinds();
+  // Like macOS: with one visible shelf, Tab shows the next shelf type in its place.
+  if(kinds.length===1){const next=KINDS[(KINDS.indexOf(ui.active)+1)%KINDS.length];await command('setSettings',{patch:{visibleKinds:[next]}});ui.active=next;}else ui.active=kinds[(kinds.indexOf(ui.active)+1)%kinds.length];const first=rowItems(ui.active)[0];select(first);if(ui.preview)ui.preview=first?.id||null;ui.zoom=1;ui.pan={x:0,y:0};render();break;}
 case 'toggleImages':case 'toggleTexts':case 'toggleLinks':{const kind=action==='toggleImages'?'image':action==='toggleTexts'?'text':'link';const kinds=visibleKinds();if(kinds.length===1&&kinds.includes(kind)){await perform('hide');break;}await command('setSettings',{patch:{visibleKinds:kinds.includes(kind)?kinds.filter(value=>value!==kind):KINDS.filter(value=>kinds.includes(value)||value===kind)}});render();break;}
 case 'toggleShelves':await command('setSettings',{patch:{visibleKinds:visibleKinds().length===1?KINDS:[ui.active]}});break;
 case 'allTypes':case 'images':case 'texts':case 'links':if(ui.view==='library'){ui.type={allTypes:'all',images:'image',texts:'text',links:'link'}[action];focusFirst();render();}break;

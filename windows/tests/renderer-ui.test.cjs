@@ -211,6 +211,13 @@ test('fresh opening skips an empty enabled image shelf so Space and Enter operat
  assert.equal(f.state.windowVisible,false);
 });
 
+test('Tab with one visible shelf shows the next shelf type in its place, like macOS',async()=>{
+ const f=fixture();await f.ready();
+ f.api.emit({items:f.state.items,settings:{...f.state.settings,visibleKinds:['image']}});await f.api.command('show');await f.ready();
+ const shown=()=>[...f.main.matchAll(/<section class="shelf(?: active-shelf)?\s*" data-shelf="([^"]+)"/g)].map(match=>match[1]);
+ assert.deepEqual(shown(),['image']);
+ for(const expected of ['text','link','image']){await f.key('Tab');await f.ready();assert.equal(JSON.stringify(f.state.settings.visibleKinds),JSON.stringify([expected]));assert.deepEqual(shown(),[expected]);}
+});
 test('fresh focus skips empty or disabled kinds and safely handles every shelf empty',async()=>{
  const f=fixture();await f.ready();
  f.api.emit({items:f.state.items.filter(value=>value.kind!=='image'),settings:{...f.state.settings,visibleKinds:['image','link']}});
