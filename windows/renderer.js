@@ -272,24 +272,58 @@ function topbar(){
  if(ui.view==='settings')return `<header class="topbar"><span class="window-title">ClipBoardLine — ${esc(t('Settings'))}</span><div class="grow"></div>${iconButton('actions','actions','Actions')}${windowControls()}</header>`;
  return `<header class="topbar library-toolbar">${iconButton('toggle-sidebar','sidebar','Toggle sidebar','aria-pressed="'+ui.sidebarVisible+'"')}<div class="window-title"><strong>${esc(libraryTitle())}</strong><small>${libraryItems().length} ${esc(t('items'))}</small></div><div class="toolbar library-main-tools">${iconButton('new-note','note','New note')}${iconButton('pin','pin','Pin')}${iconButton('view-mode',ui.list?'library':'list',ui.list?'Grid':'List')}${iconButton('toggle-filters','filter','Filters','aria-pressed="'+ui.filtersOpen+'"')}${iconButton('actions','actions','Actions')}</div><div class="grow"></div><label class="library-search">${icon('search')}<input id="search-input" data-focus="library-search" value="${attr(ui.search)}" placeholder="${attr(t('Search library…'))}" aria-label="${attr(t('Search Library'))}"></label>${iconButton('toggle-inspector','details','Show details','aria-pressed="'+ui.inspectorVisible+'"')}${windowControls()}</header>`;
 }
-// Shelf photos keep fixed slots. Natural sizes, measured once per image, let a
-// thin strip fill a readable height (cropped from its start) and give each photo
-// a magnification that fits about three slots when it is focused or hovered.
-const imageSizes=new Map();let imageFitRender=null;
-function shelfImageFit(src,index,size){
- const natural=imageSizes.get(src);if(!natural)return '';
+// Shelf photos keep fixed slots and their card markup never changes, so cached
+// cards stay connected. Natural sizes, measured once per image, let a thin strip
+// fill a readable height (cropped from its start) by updating that <img> in
+// place, and give the focused photo a larger loupe in the free space below its
+// row, so no card ever covers another.
+const imageSizes=new Map();
+function shelfPhotoSize(natural){
  const cw={small:120,medium:150,large:202}[state.settings.cardSize||'medium'],requested={small:83,medium:104,large:140}[state.settings.cardSize||'medium'];
- const photo=Math.max(50,Math.min(requested,(Number(window.innerHeight)||1000)/Math.max(1,visibleKinds().length)-98)),frameW=cw-14,aspect=natural.width/natural.height;
- const strip=aspect>4&&frameW/aspect<photo*.4,height=strip?Math.min(natural.height,photo*.6,Math.max(36,frameW/aspect)):Math.min(photo,frameW/aspect),width=strip?frameW:height*aspect;
- const zoom=Math.min(2.4,(cw*3+48)/(width+8),(photo*2.4)/(height+8));
- const origin=index===0?'top left':index>=size-1?'top right':'top center';
- return `${strip?' class="strip"':''} style="${strip?`--strip-height:${height.toFixed(1)}px;`:''}${zoom>1.15?`--zoom:${zoom.toFixed(2)};`:''}--zoom-origin:${origin}"`;
+ const row=(Number(window.innerHeight)||1000)/Math.max(1,visibleKinds().length),photo=Math.max(50,Math.min(requested,row-98)),frameW=cw-14,aspect=natural.width/natural.height;
+ const strip=aspect>4&&frameW/aspect<photo*.4,height=strip?Math.min(natural.height,photo*.6,Math.max(36,frameW/aspect)):Math.min(photo,frameW/aspect);
+ return {cw,photo,strip,height,width:strip?frameW:height*aspect};
 }
-document.addEventListener('load',event=>{const img=event.target;if(img.tagName!=='IMG'||!img.closest?.('.shelves .card.kind-image')||imageSizes.has(img.getAttribute('src'))||!img.naturalWidth)return;imageSizes.set(img.getAttribute('src'),{width:img.naturalWidth,height:img.naturalHeight});if(!imageFitRender)imageFitRender=setTimeout(()=>{imageFitRender=null;render();},30);},true);
+function applyShelfPhotoFit(img){
+ const natural=imageSizes.get(img.getAttribute('src'));if(!natural)return;
+ const fit=shelfPhotoSize(natural);img.classList.toggle('strip',fit.strip);
+ if(fit.strip)img.style.setProperty('--strip-height',fit.height.toFixed(1)+'px');else img.style.removeProperty('--strip-height');
+}
+function shelfLoupe(src,available){
+ const natural=imageSizes.get(src);if(!natural||available<=0)return null;
+ const fit=shelfPhotoSize(natural),maxW=fit.cw*3+48,maxH=Math.min(fit.photo*2.6,available);
+ const scale=fit.strip?1:Math.min(1,maxW/natural.width,maxH/natural.height),width=fit.strip?Math.min(maxW,natural.width):natural.width*scale,height=fit.strip?Math.min(natural.height,maxH):natural.height*scale;
+ return height<40||width*height<fit.width*fit.height*1.6?null:{strip:fit.strip,width,height};
+}
+// Runs after each render: fit newly connected shelf photos and place the loupe for
+// the focused card (focus only toggles classes on reused cards). The loupe is one
+// fixed element outside the shelf rows, so row nodes and images stay untouched.
+let loupeNode=null;
+function syncShelfPhotos(){
+ if(typeof document.querySelectorAll!=='function')return;
+ try{
+  for(const img of document.querySelectorAll('.shelves .card.kind-image > img'))applyShelfPhotoFit(img);
+  const card=ui.view==='shelves'&&!ui.preview?document.querySelector('.shelves .card.kind-image.focused'):null,value=card&&item(card.dataset.itemId);
+  let loupe=null,rect,rowBottom;
+  if(value){
+   // Start below the row's lowest card (or caption) and use the space left in this shelf.
+   const cards=[...card.parentElement.children].filter(node=>node.classList?.contains('card'));
+   rect=card.getBoundingClientRect();rowBottom=Math.max(...cards.flatMap(node=>[node,...node.querySelectorAll('.card-caption')]).map(node=>node.getBoundingClientRect().bottom));
+   loupe=shelfLoupe(thumbnail(value),card.closest('.shelf').getBoundingClientRect().bottom-rowBottom-30);
+  }
+  if(!loupe){loupeNode?.remove();loupeNode=null;return;}
+  if(!loupeNode){loupeNode=document.createElement('img');loupeNode.className='shelf-loupe';loupeNode.alt='';loupeNode.draggable=false;loupeNode.setAttribute('aria-hidden','true');document.body.appendChild(loupeNode);}
+  const src=thumbnail(value);if(loupeNode.getAttribute('src')!==src)loupeNode.setAttribute('src',src);
+  const left=Math.max(8,Math.min((Number(window.innerWidth)||1600)-loupe.width-8,rect.left+rect.width/2-loupe.width/2));
+  loupeNode.classList.toggle('strip',loupe.strip);
+  Object.assign(loupeNode.style,{width:loupe.width.toFixed(1)+'px',height:loupe.height.toFixed(1)+'px',left:left.toFixed(1)+'px',top:(rowBottom+14).toFixed(1)+'px'});
+ }catch{}
+}
+document.addEventListener('load',event=>{const img=event.target;if(img.tagName!=='IMG'||!img.closest?.('.shelves .card.kind-image')||!img.naturalWidth)return;const src=img.getAttribute('src');if(!imageSizes.has(src))imageSizes.set(src,{width:img.naturalWidth,height:img.naturalHeight});applyShelfPhotoFit(img);if(img.closest('.card.focused'))syncShelfPhotos();},true);
 function shelfPageSize(){const width=Number(window.innerWidth)||1600, cardWidth={small:120,medium:150,large:202}[state.settings.cardSize||'medium'];return Math.max(1,Math.min(9,Math.floor((width-48+24)/(cardWidth+24))));}
 function card(value,index,library=false,staticSelection=false) {
  const image=thumbnail(value),name=title(value),dragHint=t(library?'Drag to add to a folder · Alt+drag to export file copies':value.kind==='image'?'Drag to export file copies':'Drag to insert text · Alt+drag to export file copies');
- const media=value.kind==='image'?`<img src="${attr(image)}" alt="${attr(name)}" loading="lazy" draggable="false"${library?'':shelfImageFit(image,index,shelfPageSize())}>${recording(value)?`<span class="recording-badge" aria-label="${attr(t('Video'))}">${icon('play')}<span>${mediaTime(value.durationMs)}</span></span>`:''}`:value.kind==='text'?`<div class="card-body">${esc(value.text)}</div>`:`${image?`<img class="link-thumb" src="${attr(image)}" alt="" loading="lazy" draggable="false">`:`<div class="link-placeholder">${icon('link')}</div>`}<div class="card-title">${esc(name)}</div><div class="card-caption">${esc(hostname(value.url))}</div>`;
+ const media=value.kind==='image'?`<img src="${attr(image)}" alt="${attr(name)}" loading="lazy" draggable="false">${recording(value)?`<span class="recording-badge" aria-label="${attr(t('Video'))}">${icon('play')}<span>${mediaTime(value.durationMs)}</span></span>`:''}`:value.kind==='text'?`<div class="card-body">${esc(value.text)}</div>`:`${image?`<img class="link-thumb" src="${attr(image)}" alt="" loading="lazy" draggable="false">`:`<div class="link-placeholder">${icon('link')}</div>`}<div class="card-title">${esc(name)}</div><div class="card-caption">${esc(hostname(value.url))}</div>`;
  const body=library&&ui.list?`<div class="list-title"><div class="list-thumbnail kind-${value.kind}">${value.kind==='text'?icon('text'):image?`<img src="${attr(image)}" alt="" loading="lazy" draggable="false">`:icon(value.kind)}</div><span class="card-title">${esc(name)}</span></div><span class="list-kind">${esc(t(TITLES[value.kind]))}</span><span class="list-tags">${esc((value.tags||[]).join(', '))}</span><time class="list-added" datetime="${attr(new Date(value.createdAt).toISOString())}">${esc(new Date(value.createdAt).toLocaleDateString())}</time>`:library?`<div class="library-media">${media}</div><div class="library-card-info"><div class="card-title">${esc(name)}</div><span class="card-caption">${icon(value.kind)}${esc(value.kind==='link'?hostname(value.url):t(TITLES[value.kind]))}</span>${value.tags?.length?`<span class="card-tags">${value.tags.slice(0,2).map(tag=>`<span class="tag">${esc(tag)}</span>`).join('')}</span>`:''}</div>`:`${value.kind==='text'&&value.name?`<div class="card-title">${esc(value.name)}</div>`:''}${media}${value.kind==='image'&&value.name?`<div class="card-caption">${esc(value.name)}</div>`:''}`;
  const width=Number(window.innerWidth)||1600,cw={small:120,medium:150,large:202}[state.settings.cardSize||'medium'],fraction=Math.max(0,Math.min(1,(24+cw/2+index*(cw+24))/width)),sag=4*Math.min(30,width*.018)*fraction*(1-fraction);
  return `<article class="card kind-${value.kind} ${!staticSelection&&ui.focus===value.id?'focused':''} ${!staticSelection&&ui.selected.has(value.id)?'selected':''} ${library?'library-card':''} ${recording(value)?'recording-card':''}" ${!library?`style="--sag:${sag.toFixed(2)}px"`:''} data-item-id="${attr(value.id)}" tabindex="${library?(ui.focus===value.id?0:-1):0}" role="option" aria-selected="${!staticSelection&&ui.selected.has(value.id)}" aria-label="${attr(name)}" aria-description="${attr(dragHint)}" title="${attr(dragHint)}" draggable="true">${body}<div class="card-controls">${library?iconButton('card-copy','copy','Copy',`data-id="${value.id}" tabindex="-1"`):''}<button data-action="card-pin" data-id="${value.id}" class="${value.pinned?'pinned':''}" ${library?'tabindex="-1"':''} aria-label="${attr(t(value.pinned?'Unpin':'Pin'))}" title="${attr(t(value.pinned?'Unpin':'Pin'))}">${icon('pin')}</button><button data-action="card-remove" data-id="${value.id}" ${library?'tabindex="-1"':''} aria-label="${attr(t('Take down'))}" title="${attr(t('Take down'))}">${icon('close')}</button></div>${!library&&index<9?`<span class="card-number" aria-hidden="true">${index+1}</span>`:''}</article>`;
@@ -405,7 +439,7 @@ function updateShelfSelection(){
   if(card.getAttribute('aria-selected')!==String(selected))card.setAttribute('aria-selected',String(selected));
  }
 }
-function render() { if(preserveLibraryDrag())return;const libraryFocus=libraryFocusIdentity();const scrollPositions=captureScrollPositions();queueLibraryImageSearch();const focused=document.activeElement;const detailID=focused?.dataset?.detailId;const selected=detailID?selectedIds():[];const reuseDetail=!!detailID&&ui.view==='library'&&ui.inspectorVisible&&!ui.preview&&!ui.modal&&state.windowVisible!==false&&selected.length===1&&selected[0]===detailID;const identity=focused?.dataset?.focus;const focusedId=focused?.id;const oldValue=isEditor(focused)?focused.value:null;const selection=(identity||focusedId)&&typeof focused.selectionStart==='number'?[focused.selectionStart,focused.selectionEnd]:null;document.body.className=`view-${ui.view}`;root.className=`${state.settings.theme==='neutral'?'neutral':''} size-${state.settings.cardSize||'medium'}`;const html=`<div class="shell ${ui.view==='shelves'?'shelf-shell':'normal-shell'}">${topbar()}${ui.view==='settings'?settings():ui.view==='library'?library():shelves()}${ui.view==='library'?`<footer class="statusbar"><span>${selectedIds().length} selected</span><div class="grow"></div><div class="key-legend"><span><kbd>Space</kbd> ${esc(t('Preview'))}</span><span><kbd>Enter</kbd> ${esc(t('Copy'))}</span><span>${keyHint('pin')} ${esc(t('Pin'))}</span><span>${keyHint('actions')} ${esc(t('Actions'))}</span></div></footer>`:''}</div>`;if(!renderShelfTree(html)&&!renderWithActiveInspector(html,focused,reuseDetail))root.innerHTML=html;updateShelfSelection();root.setAttribute('aria-busy','false');renderOverlay();if(identity||focusedId){let next=focusedId?(detailID?root.querySelector('#'+focusedId):document.getElementById(focusedId)):root.querySelector(`[data-focus="${identity}"]`);if(detailID)next=null;else if(next&&oldValue!=null&&isEditor(next))next.value=oldValue;next?.focus({preventScroll:true});if(selection&&next?.setSelectionRange)try{next.setSelectionRange(...selection);}catch{}}restoreScrollPositions(scrollPositions);restoreLibraryFocus(libraryFocus);}
+function render() { if(preserveLibraryDrag())return;const libraryFocus=libraryFocusIdentity();const scrollPositions=captureScrollPositions();queueLibraryImageSearch();const focused=document.activeElement;const detailID=focused?.dataset?.detailId;const selected=detailID?selectedIds():[];const reuseDetail=!!detailID&&ui.view==='library'&&ui.inspectorVisible&&!ui.preview&&!ui.modal&&state.windowVisible!==false&&selected.length===1&&selected[0]===detailID;const identity=focused?.dataset?.focus;const focusedId=focused?.id;const oldValue=isEditor(focused)?focused.value:null;const selection=(identity||focusedId)&&typeof focused.selectionStart==='number'?[focused.selectionStart,focused.selectionEnd]:null;document.body.className=`view-${ui.view}`;root.className=`${state.settings.theme==='neutral'?'neutral':''} size-${state.settings.cardSize||'medium'}`;const html=`<div class="shell ${ui.view==='shelves'?'shelf-shell':'normal-shell'}">${topbar()}${ui.view==='settings'?settings():ui.view==='library'?library():shelves()}${ui.view==='library'?`<footer class="statusbar"><span>${selectedIds().length} selected</span><div class="grow"></div><div class="key-legend"><span><kbd>Space</kbd> ${esc(t('Preview'))}</span><span><kbd>Enter</kbd> ${esc(t('Copy'))}</span><span>${keyHint('pin')} ${esc(t('Pin'))}</span><span>${keyHint('actions')} ${esc(t('Actions'))}</span></div></footer>`:''}</div>`;if(!renderShelfTree(html)&&!renderWithActiveInspector(html,focused,reuseDetail))root.innerHTML=html;updateShelfSelection();root.setAttribute('aria-busy','false');renderOverlay();if(identity||focusedId){let next=focusedId?(detailID?root.querySelector('#'+focusedId):document.getElementById(focusedId)):root.querySelector(`[data-focus="${identity}"]`);if(detailID)next=null;else if(next&&oldValue!=null&&isEditor(next))next.value=oldValue;next?.focus({preventScroll:true});if(selection&&next?.setSelectionRange)try{next.setSelectionRange(...selection);}catch{}}restoreScrollPositions(scrollPositions);restoreLibraryFocus(libraryFocus);syncShelfPhotos();}
 // Display order follows the native Library's folded-name/ID order while
 // retaining parent/child groups. Never reorder the persisted folder array.
 function sortedFolders(){
