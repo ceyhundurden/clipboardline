@@ -95,6 +95,11 @@ svg.rope path, svg.line path { fill: none; stroke: #a3a3a9; stroke-width: 1.1; v
 .shelves .shelf-title { height: 26px; min-height: 26px; padding: 4px 11px; gap: 6px; font-size: 12px; box-shadow: 0 2px 8px #0006; }
 .shelves .shelf-count { font-size: 11px; }
 .shelves .card { border-color: #ffffff38; box-shadow: 0 10px 22px #0007; }
+.shelves .card.kind-image > img.strip { width: calc(var(--card-width) - 6px); max-width: none; height: var(--strip-height); object-fit: cover; object-position: left center; }
+.shelves .card.kind-image > img { transform-origin: var(--zoom-origin, top center); transition: transform .14s ease, box-shadow .14s ease; }
+.shelves .card.kind-image:hover, .shelves .card.kind-image.focused { z-index: 6; }
+.shelves .card.kind-image:hover > img, .shelves .card.kind-image.focused > img { transform: scale(var(--zoom, 1)); }
+.shelves .card.kind-image:is(:hover, .focused):has(> img[style*="--zoom"]) .card-number { opacity: 0; }
 .shelves .card.kind-image > img, .shelves .image-frame, .shelves .photo-frame { border: 1.5px solid #ffffffb3; box-shadow: 0 10px 24px #0008, inset 0 0 0 1px #0003; }
 .cards { position: absolute; inset: 0; display: flex; align-items: flex-start; gap: 24px; overflow-x: auto; overflow-y: hidden; padding: 46px 24px 28px; min-height: 0; scrollbar-width: none; scroll-behavior: smooth; }
 .cards::-webkit-scrollbar { display: none; }
