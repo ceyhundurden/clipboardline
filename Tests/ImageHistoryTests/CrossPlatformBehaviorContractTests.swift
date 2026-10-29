@@ -96,6 +96,7 @@ import XCTest
                 case "left": _ = keyboard.handle(try key(123))
                 case "right": _ = keyboard.handle(try key(124))
                 case "toggle": _ = line.toggleShelf(try shelf(try required(step["kind"], String.self)))
+                case "switchShelf": _ = keyboard.handle(try key(48, characters: "\t"))
                 case "openSearch": line.beginShelfSearch()
                 case "finishSearch":
                     line.finishShelfSearchEditing(line.activeShelf)

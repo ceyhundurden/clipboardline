@@ -217,6 +217,9 @@ test('Tab with one visible shelf shows the next shelf type in its place, like ma
  const shown=()=>[...f.main.matchAll(/<section class="shelf(?: active-shelf)?\s*" data-shelf="([^"]+)"/g)].map(match=>match[1]);
  assert.deepEqual(shown(),['image']);
  for(const expected of ['text','link','image']){await f.key('Tab');await f.ready();assert.equal(JSON.stringify(f.state.settings.visibleKinds),JSON.stringify([expected]));assert.deepEqual(shown(),[expected]);}
+ const original=f.api.command;f.api.command=async(action,payload)=>{if(action==='setSettings')throw new Error('Synthetic settings failure');return original(action,payload);};
+ await f.key('Tab');await f.ready();f.api.command=original;
+ assert.equal(JSON.stringify(f.state.settings.visibleKinds),JSON.stringify(['image']),'a failed settings write must not switch shelves');assert.deepEqual(shown(),['image']);assert.match(f.main,/active-shelf\s*" data-shelf="image"/);
 });
 test('fresh focus skips empty or disabled kinds and safely handles every shelf empty',async()=>{
  const f=fixture();await f.ready();
@@ -349,6 +352,7 @@ test('shared macOS/Windows shelf contract runs through actual renderer handlers'
    else if(step.action==='close')await f.api.command('hide');
    else if(step.action==='remap'){const localShortcuts={...f.state.settings.localShortcuts};if(step.key===null)delete localShortcuts[step.binding];else localShortcuts[step.binding]=step.key==='KeyX'?'X':step.key;f.api.emit({settings:{...f.state.settings,localShortcuts}});}
    else if(step.action==='key')await f.key(step.code,searchEditing?{target:editor}:{});
+   else if(step.action==='switchShelf')await f.key('Tab');
    else if(['up','down','left','right'].includes(step.action))await f.key({up:'ArrowUp',down:'ArrowDown',left:'ArrowLeft',right:'ArrowRight'}[step.action],searchEditing?{target:editor}:{});
    else if(step.action==='toggle')await f.key({image:'KeyI',text:'KeyT',link:'KeyL'}[step.kind],{shift:true});
    else if(step.action==='openSearch')await f.key('KeyS',{shift:true});
