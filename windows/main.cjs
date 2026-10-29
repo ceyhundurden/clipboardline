@@ -278,9 +278,23 @@ async function recognize(id,quiet=false) {
   try{let image=nativeImage.createFromPath(file);const size=image.getSize(),scale=Math.min(1,2400/Math.max(size.width,size.height));if(scale<1)image=image.resize({width:Math.round(size.width*scale),height:Math.round(size.height*scale)});const result=await worker.recognize(image.toPNG());if(!store.data.items.includes(item)||(item.renderedFile||item.imageFile)!==fingerprint)throw new Error('Image changed during recognition');item.ocrText=String(result.data.text||'').slice(0,1024*1024);store.persist();if(!quiet)notify(item.ocrText?'Image text ready':'No text found');else broadcast();return{text:item.ocrText,id};}
   finally{await worker.terminate();}
 }
+// Win+Shift+S, PrtSc and Win+PrtSc save into the Screenshots known folder,
+// which follows Pictures (often redirected to OneDrive) unless relocated.
+function systemScreenshotFolder() {
+  if(testMode||process.platform!=='win32')return null;
+  try{
+    const output=require('node:child_process').execFileSync('reg',['query','HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders','/v','{B7BEDE81-DF94-4682-A7D8-57A52620B86F}'],{encoding:'utf8',windowsHide:true,timeout:5000,stdio:['ignore','pipe','ignore']});
+    const value=output.match(/REG_(?:EXPAND_)?SZ\s+(.+)/)?.[1]?.trim();
+    if(value)return value.replace(/%([^%]+)%/g,(match,name)=>process.env[name]??match);
+  }catch{}
+  try{const folder=path.join(app.getPath('pictures'),'Screenshots');fs.mkdirSync(folder,{recursive:true});return folder;}catch{return null;}
+}
 function configureWatchers() {
   for(const watcher of watchers)watcher.close();watchers=[];
-  for(const folder of store.data.settings.watchFolders){try{if(!fs.statSync(folder).isDirectory())continue;const timers=new Map();const watcher=fs.watch(folder,(_event,name)=>{if(!name||!/[.](png|jpe?g|webp|bmp|mov|mp4)$/i.test(name))return;clearTimeout(timers.get(name));timers.set(name,setTimeout(()=>{timers.delete(name);try{const file=path.join(folder,path.basename(name));const item=importFile(file);Promise.resolve(item).then(record=>{broadcast();if(store.data.settings.openAfterScreenshot)void show('shelves',{selectId:record.id,kind:'image'});}).catch(()=>{});}catch{}},700));});watcher.on('error',()=>{});watchers.push(watcher);}catch{}}
+  const system=systemScreenshotFolder();
+  const folders=[...store.data.settings.watchFolders];
+  if(system&&!folders.some(folder=>path.resolve(folder).toLowerCase()===path.resolve(system).toLowerCase()))folders.push(system);
+  for(const folder of folders){try{if(!fs.statSync(folder).isDirectory())continue;const timers=new Map();const watcher=fs.watch(folder,(_event,name)=>{if(!name||!/[.](png|jpe?g|webp|bmp|mov|mp4)$/i.test(name))return;clearTimeout(timers.get(name));timers.set(name,setTimeout(()=>{timers.delete(name);try{const file=path.join(folder,path.basename(name));const item=importFile(file);Promise.resolve(item).then(record=>{broadcast();if(store.data.settings.openAfterScreenshot)void show('shelves',{selectId:record.id,kind:'image'});}).catch(()=>{});}catch{}},700));});watcher.on('error',()=>{});watchers.push(watcher);}catch{}}
 }
 let shortcutRegistry,shortcutRecording=null;
 function finishShortcutRecording(token=null){
