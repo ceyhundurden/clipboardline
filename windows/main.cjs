@@ -280,14 +280,23 @@ async function recognize(id,quiet=false) {
 }
 // Win+Shift+S, PrtSc and Win+PrtSc save into the Screenshots known folder,
 // which follows Pictures (often redirected to OneDrive) unless relocated.
+// The relocated path is read through PowerShell as Base64 UTF-8 so non-ASCII
+// folder names survive any console code page; it resolves once, off the main path.
+let systemScreenshots;
 function systemScreenshotFolder() {
-  if(testMode||process.platform!=='win32')return null;
-  try{
-    const output=require('node:child_process').execFileSync('reg',['query','HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders','/v','{B7BEDE81-DF94-4682-A7D8-57A52620B86F}'],{encoding:'utf8',windowsHide:true,timeout:5000,stdio:['ignore','pipe','ignore']});
-    const value=output.match(/REG_(?:EXPAND_)?SZ\s+(.+)/)?.[1]?.trim();
-    if(value)return value.replace(/%([^%]+)%/g,(match,name)=>process.env[name]??match);
-  }catch{}
-  try{const folder=path.join(app.getPath('pictures'),'Screenshots');fs.mkdirSync(folder,{recursive:true});return folder;}catch{return null;}
+  if(testMode||process.platform!=='win32'||!store.data.settings.watchSystemScreenshots)return null;
+  if(systemScreenshots!==undefined)return systemScreenshots;
+  systemScreenshots=null;
+  const ready=folder=>{try{if(folder&&path.isAbsolute(folder)){fs.mkdirSync(folder,{recursive:true});if(fs.statSync(folder).isDirectory())return folder;}}catch{}return null;};
+  const fallback=()=>ready(path.join(app.getPath('pictures'),'Screenshots'));
+  const powershell=path.join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe');
+  const query="$v=(Get-ItemProperty -LiteralPath 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders' -ErrorAction SilentlyContinue).'{B7BEDE81-DF94-4682-A7D8-57A52620B86F}';if($v){[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($v))}";
+  require('node:child_process').execFile(powershell,['-NoProfile','-NonInteractive','-Command',query],{windowsHide:true,timeout:10000},(error,stdout)=>{
+    const relocated=error?'':Buffer.from(String(stdout).trim(),'base64').toString('utf8');
+    systemScreenshots=ready(relocated)||fallback();
+    if(systemScreenshots)configureWatchers();
+  });
+  return null;
 }
 function configureWatchers() {
   for(const watcher of watchers)watcher.close();watchers=[];
@@ -394,6 +403,7 @@ async function command(action,payload={}) {
     const previousShortcuts={...store.data.settings.shortcuts};
     store.modify('setSettings',{patch});if(Object.hasOwn(patch,'retentionDays'))refreshImageSearch();if(Object.hasOwn(patch,'shortcuts')&&configureShortcuts(previousShortcuts).length)result={error:message};
     if(['captureText','captureImages','captureLinks'].some(key=>Object.hasOwn(patch,key)))lastFingerprint='';
+    if(Object.hasOwn(patch,'watchSystemScreenshots'))configureWatchers();
     if(Object.hasOwn(patch,'launchAtLogin')&&!testMode)app.setLoginItemSettings({openAtLogin:patch.launchAtLogin});
     if(Object.hasOwn(patch,'autoCheckUpdates')&&patch.autoCheckUpdates&&!development)void updateScheduler.tick({force:true});
   }else if(action==='watchFolder'||action==='chooseWatchFolder'){const response=await dialog.showOpenDialog(window,{properties:['openDirectory']});if(response.filePaths[0]){store.modify('setSettings',{patch:{watchFolders:[...store.data.settings.watchFolders,response.filePaths[0]]}});configureWatchers();}}

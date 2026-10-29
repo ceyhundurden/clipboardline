@@ -56,11 +56,33 @@ function metadataGuard(url){
 }
 function metadataFetch(input,options={}){return boundedFetch(input,{...options,guard:metadataGuard});}
 const entities = value => value.replace(/&(?:amp|quot|lt|gt|apos|#39|#34);/g, match => ({'&amp;':'&','&quot;':'"','&lt;':'<','&gt;':'>','&apos;':"'",'&#39;':"'",'&#34;':'"'}[match]));
+// Scans a start tag's attributes, honoring quoted values, until its closing '>'.
+// An unquoted '<' or 4096 characters without '>' ends the attempt, so a page of
+// unclosed tags costs linear work instead of a backtracking regex scan.
+function tagAttributes(html, start) {
+  let quote = '';
+  for (let index = start, end = Math.min(html.length, start + 4096); index < end; index++) {
+    const ch = html[index];
+    if (quote) { if (ch === quote) quote = ''; }
+    else if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === '>') return {text: html.slice(start, index), end: index + 1};
+    else if (ch === '<') return null;
+  }
+  return null;
+}
+function documentTitle(html) {
+  for (const match of html.matchAll(/<title\b/gi)) {
+    const tag = tagAttributes(html, match.index + match[0].length); if (!tag) continue;
+    const close = /<\/title\s*>/i.exec(html.slice(tag.end, tag.end + 2016));
+    return close && close.index <= 2000 ? html.slice(tag.end, tag.end + close.index) : '';
+  }
+  return '';
+}
 function meta(html, name) {
-  // Attribute runs stop at the next tag, so unclosed tags cannot make a scan quadratic.
-  for (const match of html.matchAll(/<meta\b([^<>]{0,4096})>/gi)) {
+  for (const match of html.matchAll(/<meta\b/gi)) {
+    const tag = tagAttributes(html, match.index + match[0].length); if (!tag) continue;
     const attributes = {};
-    for (const attr of match[1].matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) attributes[attr[1].toLowerCase()] = attr[2] ?? attr[3];
+    for (const attr of tag.text.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) attributes[attr[1].toLowerCase()] = attr[2] ?? attr[3];
     if ([attributes.property, attributes.name].includes(name)) return entities(attributes.content || '').slice(0, 1000);
   }
   return '';
@@ -75,7 +97,7 @@ async function linkMetadata(input, fetcher = metadataFetch) {
   }
   const response = await fetcher(url.href); if (!/text\/html|application\/xhtml/i.test(response.type)) return {title: url.hostname};
   const html = response.bytes.toString('utf8');
-  const title = meta(html, 'og:title') || entities((html.match(/<title\b[^<>]{0,4096}>([\s\S]{0,2000}?)<\/title>/i)?.[1] || url.hostname).replace(/<[^>]*>/g, '')).trim();
+  const title = meta(html, 'og:title') || entities((documentTitle(html) || url.hostname).replace(/<[^>]*>/g, '')).trim();
   let thumbnail = meta(html, 'og:image');
   if (thumbnail) try { thumbnail = new URL(thumbnail, response.url).href; } catch { thumbnail = ''; }
   return {title: title.slice(0, 500), thumbnail};
