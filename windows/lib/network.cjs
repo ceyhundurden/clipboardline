@@ -71,32 +71,36 @@ function tagAttributes(html, start) {
   }
   return {ok: false, end: index};
 }
-// Uses the first title whose closing tag follows within 2000 characters, skipping
-// script, style and comment bodies and every other tag's (quoted) attributes, so
-// text inside them is never taken as a title. Every cursor only moves forward, so
-// the work stays linear.
-function documentTitle(html) {
-  const tokens = /<(title|script|style)(?=[\s/>])|<!--|<[a-z][\w:-]*/gi, closing = /<\/title\s*>/gi; let close = null, match;
+// Visits start tags in document order, skipping comments, script and style
+// bodies and every tag's quoted attributes, so text inside them is never taken
+// as a tag. An XHTML self-closing <script/> or <style/> has no body. Every
+// cursor only moves forward, so the work stays linear. A value returned by
+// visit ends the walk.
+function walkTags(html, xhtml, visit) {
+  const tokens = /<!--|<([a-z][\w:-]*)/gi; let match;
   while ((match = tokens.exec(html))) {
-    if (match[0] === '<!--') { const end = html.indexOf('-->', tokens.lastIndex); if (end < 0) return ''; tokens.lastIndex = end + 3; continue; }
-    if (!match[1]) { tokens.lastIndex = tagAttributes(html, tokens.lastIndex).end; continue; }
-    if (match[1].toLowerCase() !== 'title') { const tag = tagAttributes(html, tokens.lastIndex); if (!tag.ok) { tokens.lastIndex = tag.end; continue; } const end = new RegExp('</' + match[1] + '\\s*>', 'gi'); end.lastIndex = tag.end; if (!end.exec(html)) return ''; tokens.lastIndex = end.lastIndex; continue; }
-    const tag = tagAttributes(html, tokens.lastIndex); if (!tag.ok) { tokens.lastIndex = tag.end; continue; }
+    if (match[0] === '<!--') { const end = html.indexOf('-->', tokens.lastIndex); if (end < 0) return; tokens.lastIndex = end + 3; continue; }
+    const name = match[1].toLowerCase(), tag = tagAttributes(html, tokens.lastIndex); tokens.lastIndex = tag.end; if (!tag.ok) continue;
+    if ((name === 'script' || name === 'style') && !(xhtml && tag.text.endsWith('/'))) { const end = new RegExp('</' + name + '\s*>', 'gi'); end.lastIndex = tag.end; if (!end.exec(html)) return; tokens.lastIndex = end.lastIndex; continue; }
+    const result = visit(name, tag); if (result !== undefined) return result;
+  }
+}
+// Uses the first title whose closing tag follows within 2000 characters.
+function documentTitle(html, xhtml) {
+  const closing = /<\/title\s*>/gi; let close = null;
+  return walkTags(html, xhtml, (name, tag) => {
+    if (name !== 'title') return;
     if (!close || close.index < tag.end) { closing.lastIndex = tag.end; close = closing.exec(html); if (!close) return ''; }
     if (close.index - tag.end <= 2000) return html.slice(tag.end, close.index);
-  }
-  return '';
+  }) || '';
 }
-function meta(html, name) {
-  // Resume after each parsed tag, so a quoted '<meta' inside an attribute is not a tag.
-  const tags = /<meta(?=[\s/>])/gi; let match;
-  while ((match = tags.exec(html))) {
-    const tag = tagAttributes(html, tags.lastIndex); tags.lastIndex = tag.end; if (!tag.ok) continue;
+function meta(html, name, xhtml) {
+  return walkTags(html, xhtml, (tagName, tag) => {
+    if (tagName !== 'meta') return;
     const attributes = {};
     for (const attr of tag.text.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) attributes[attr[1].toLowerCase()] = attr[2] ?? attr[3];
     if ([attributes.property, attributes.name].includes(name)) return entities(attributes.content || '').slice(0, 1000);
-  }
-  return '';
+  }) || '';
 }
 async function linkMetadata(input, fetcher = metadataFetch) {
   metadataGuard(new URL(input));
@@ -107,9 +111,9 @@ async function linkMetadata(input, fetcher = metadataFetch) {
     return {title: String(data.title || '').slice(0, 500), author: String(data.author_name || '').slice(0, 200), thumbnail: data.thumbnail_url || ''};
   }
   const response = await fetcher(url.href); if (!/text\/html|application\/xhtml/i.test(response.type)) return {title: url.hostname};
-  const html = response.bytes.toString('utf8');
-  const title = meta(html, 'og:title') || entities((documentTitle(html) || url.hostname).replace(/<[^>]*>/g, '')).trim();
-  let thumbnail = meta(html, 'og:image');
+  const html = response.bytes.toString('utf8'), xhtml = /application\/xhtml/i.test(response.type);
+  const title = meta(html, 'og:title', xhtml) || entities((documentTitle(html, xhtml) || url.hostname).replace(/<[^>]*>/g, '')).trim();
+  let thumbnail = meta(html, 'og:image', xhtml);
   if (thumbnail) try { thumbnail = new URL(thumbnail, response.url).href; } catch { thumbnail = ''; }
   return {title: title.slice(0, 500), thumbnail};
 }
