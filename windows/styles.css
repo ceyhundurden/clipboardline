@@ -96,10 +96,12 @@ svg.rope path, svg.line path { fill: none; stroke: #a3a3a9; stroke-width: 1.1; v
 .shelves .shelf-count { font-size: 11px; }
 .shelves .card { border-color: #ffffff38; box-shadow: 0 10px 22px #0007; }
 .shelves .card.kind-image > img.strip { width: calc(var(--card-width) - 6px); max-width: none; height: var(--strip-height); object-fit: cover; object-position: left center; }
-.shelves .card.kind-image > img { transform-origin: var(--zoom-origin, top center); transition: transform .14s ease, box-shadow .14s ease; }
-.shelves .card.kind-image:hover, .shelves .card.kind-image.focused { z-index: 6; }
-.shelves .card.kind-image:hover > img, .shelves .card.kind-image.focused > img { transform: scale(var(--zoom, 1)); }
-.shelves .card.kind-image:is(:hover, .focused):has(> img[style*="--zoom"]) .card-number { opacity: 0; }
+/* The magnified photo is visual only; the pointer keeps reaching the card actually beneath it. */
+.shelves .card.kind-image > img { transform-origin: var(--zoom-origin, top center); transition: transform .14s ease, box-shadow .14s ease; pointer-events: none; }
+/* One photo magnifies at a time: the hovered one, else the focused one. */
+.shelves .card.kind-image:hover, .shelves .cards:not(:has(.card:hover)) .card.kind-image.focused { z-index: 6; }
+.shelves .card.kind-image:hover > img, .shelves .cards:not(:has(.card:hover)) .card.kind-image.focused > img { transform: scale(var(--zoom, 1)); }
+.shelves .card.kind-image:hover:has(> img[style*="--zoom"]) .card-number, .shelves .cards:not(:has(.card:hover)) .card.kind-image.focused:has(> img[style*="--zoom"]) .card-number { opacity: 0; }
 .shelves .card.kind-image > img, .shelves .image-frame, .shelves .photo-frame { border: 1.5px solid #ffffffb3; box-shadow: 0 10px 24px #0008, inset 0 0 0 1px #0003; }
 .cards { position: absolute; inset: 0; display: flex; align-items: flex-start; gap: 24px; overflow-x: auto; overflow-y: hidden; padding: 46px 24px 28px; min-height: 0; scrollbar-width: none; scroll-behavior: smooth; }
 .cards::-webkit-scrollbar { display: none; }
