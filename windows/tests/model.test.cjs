@@ -113,3 +113,8 @@ test('fresh global defaults match Mac while old toggle choices and optional-off 
  const restored=new Store(dir);assert.equal(restored.data.settings.shortcuts.toggle,'Control+Alt+Space');assert.equal(restored.data.settings.shortcuts.library,'');assert.equal(restored.data.settings.shortcuts.copyLatest,'');
  restored.modify('setSettings',{patch:{shortcuts:{library:'Control+Alt+L',copyLatest:'Control+Alt+C'}}});assert.equal(new Store(dir).data.settings.shortcuts.library,'Control+Alt+L');restored.modify('setSettings',{patch:{shortcuts:{library:'',copyLatest:''}}});assert.equal(new Store(dir).data.settings.shortcuts.copyLatest,'');assert.throws(()=>restored.modify('setSettings',{patch:{shortcuts:{unknown:'Control+Alt+U'}}}),/Invalid shortcut/);
 }));
+test('selection lookups keep request order and reject missing items',()=>fixture(s=>{
+ const first=s.insert('text','first'),second=s.insert('text','second');assert.deepEqual(s.selected([first.id,second.id]).map(item=>item.id),[first.id,second.id]);
+ assert.throws(()=>s.selected([first.id,'00000000-0000-4000-8000-000000000000']),/no longer exists/);
+ s.modify('trash',{ids:[first.id]});s.modify('delete',{ids:[first.id]});assert.deepEqual(s.data.items.map(item=>item.id),[second.id]);
+}));

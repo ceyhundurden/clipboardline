@@ -386,18 +386,23 @@ async function command(action,payload={}) {
   }
   else if(action==='capture')result=await capture();
   else if(action==='newNote'){const item=store.insert('text',payload.text||'New note');if(payload.title)store.modify('details',{id:item.id,name:payload.title});store.modify('retain',{ids:[item.id]});result={id:item.id};}
-  else if(action==='import'){const response=await dialog.showOpenDialog(window,{properties:['openFile','multiSelections'],filters:[{name:'Images, recordings and text',extensions:['png','jpg','jpeg','webp','bmp','mov','mp4','txt','md']}]});const imported=[];for(const file of response.filePaths){const item=await importFile(file);imported.push(item.id);if(item.kind==='link')void enrich(item.id);}result={ids:imported};}
+  else if(action==='import'){const response=await dialog.showOpenDialog(window,{properties:['openFile','multiSelections'],filters:[{name:'Images, recordings and text',extensions:['png','jpg','jpeg','webp','bmp','mov','mp4','txt','md']}]});const imported=[],failures=[];for(const file of response.filePaths){try{const item=await importFile(file);imported.push(item.id);if(item.kind==='link')void enrich(item.id);}catch(error){failures.push(path.basename(file)+': '+error.message);}}result={ids:imported,failed:failures.length};if(failures.length)message=(imported.length?`Imported ${imported.length} · failed ${failures.length}. `:'')+failures[0];}
   else if(action==='searchImages'){if(!imageSearch)throw new Error('Offline image search is unavailable.');result=await imageSearch.search(payload.query,payload.eligibleIds);}
   else if(action==='ocr')result=await ocr(payload.id);
   else if(action==='copyOCR'){const recognized=await ocr(payload.id);if(!recognized.text.trim())throw new Error('No text found in this image.');await writeClipboard([{kind:'text',text:recognized.text}]);result=recognized;notify('Recognized text copied');}
   else if(action==='export'){
     const selected=store.selected(ids(payload.ids));if(!selected.length)throw new Error('Select an item first');
     const response=await dialog.showOpenDialog(window,{properties:['openDirectory','createDirectory']});if(response.filePaths[0]){
-      for(const item of selected){const label=(item.name||item.title||item.kind).replace(/[<>:"/\\|?*\x00-\x1F]/g,'-').replace(/[. ]+$/g,'').slice(0,100)||item.kind;const extension=item.kind==='image'?(item.recording?path.extname(store.mediaPath(item.id)):'.png'):item.kind==='link'?'.url':'.txt';let index=1,destination;
+      let exported=0,failed=0;
+      for(const item of selected){try{const label=(item.name||item.title||item.kind).replace(/[<>:"/\\|?*\x00-\x1F]/g,'-').replace(/[. ]+$/g,'').slice(0,100)||item.kind;const extension=item.kind==='image'?(item.recording?path.extname(store.mediaPath(item.id)):'.png'):item.kind==='link'?'.url':'.txt';let index=1,destination;
         do{destination=path.join(response.filePaths[0],label+(index>1?'-'+index:'')+extension);index++;}while(fs.existsSync(destination));
         if(item.kind==='image')await fs.promises.copyFile(store.mediaPath(item.id),destination,fs.constants.COPYFILE_EXCL);
         else fs.writeFileSync(destination,Buffer.from(item.kind==='link'?'[InternetShortcut]\r\nURL='+item.url+'\r\n':item.text),{flag:'wx'});
-      }result={count:selected.length};message=`Exported ${selected.length} items.`;
+        exported++;}catch{failed++;}
+      }
+      // Match the Mac export: keep copying after one failure, then report both counts.
+      if(!exported)throw new Error('Could not export copies');
+      result={count:exported,failed};message=`Exported ${exported} · failed ${failed}`;
     }
   }
   else if(action==='startDrag'){

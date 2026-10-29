@@ -55,7 +55,15 @@ function metadataGuard(url){
   for(const key of url.searchParams.keys()){const normalized=key.toLowerCase().replace(/[^a-z0-9]/g,'');if(/^(xamz|xgoog|oauth)/.test(normalized)||sensitive.has(normalized))throw new Error('Sensitive link parameters are not fetched automatically.');}
 }
 function metadataFetch(input,options={}){return boundedFetch(input,{...options,guard:metadataGuard});}
-const entities = value => value.replace(/&(?:amp|quot|lt|gt|apos|#39|#34);/g, match => ({'&amp;':'&','&quot;':'"','&lt;':'<','&gt;':'>','&apos;':"'",'&#39;':"'",'&#34;':'"'}[match]));
+const NAMED_ENTITIES = {amp:'&',quot:'"',lt:'<',gt:'>',apos:"'",nbsp:' '};
+// Titles such as "It&#8217;s" or "A&#x2F;B" must not show raw references.
+// Invalid or control code points stay literal rather than injecting text.
+const entities = value => value.replace(/&(?:#(\d{1,7})|#[xX]([0-9a-fA-F]{1,6})|(amp|quot|lt|gt|apos|nbsp));/g, (match, decimal, hex, name) => {
+  if (name) return NAMED_ENTITIES[name];
+  const code = decimal ? Number(decimal) : parseInt(hex, 16);
+  return code > 0x1f && code <= 0x10ffff && !(code >= 0x7f && code <= 0x9f) && !(code >= 0xd800 && code <= 0xdfff) ? String.fromCodePoint(code) : match;
+});
+const collapse = value => value.replace(/\s+/g, ' ').trim();
 // Scans a start tag's attributes, honoring quoted values, until its closing '>'.
 // An unquoted '<' or 4096 characters without '>' ends the attempt, so a page of
 // unclosed tags costs linear work instead of a backtracking regex scan. A failed
@@ -112,7 +120,8 @@ async function linkMetadata(input, fetcher = metadataFetch) {
   }
   const response = await fetcher(url.href); if (!/text\/html|application\/xhtml/i.test(response.type)) return {title: url.hostname};
   const html = response.bytes.toString('utf8'), xhtml = /application\/xhtml/i.test(response.type);
-  const title = meta(html, 'og:title', xhtml) || entities((documentTitle(html, xhtml) || url.hostname).replace(/<[^>]*>/g, '')).trim();
+  // Collapse layout whitespace only in display text; og:image stays a URL.
+  const title = collapse(meta(html, 'og:title', xhtml)) || collapse(entities(documentTitle(html, xhtml).replace(/<[^>]*>/g, ''))) || url.hostname;
   let thumbnail = meta(html, 'og:image', xhtml);
   if (thumbnail) try { thumbnail = new URL(thumbnail, response.url).href; } catch { thumbnail = ''; }
   return {title: title.slice(0, 500), thumbnail};
