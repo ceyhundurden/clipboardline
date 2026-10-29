@@ -132,9 +132,7 @@ try{
     $profile.Video.Width=$video.Width;$profile.Video.Height=$video.Height
     $profile.Video.FrameRate.Numerator=$video.FrameRate.Numerator;$profile.Video.FrameRate.Denominator=$video.FrameRate.Denominator
     $profile.Video.PixelAspectRatio.Numerator=1;$profile.Video.PixelAspectRatio.Denominator=1
-    # Near-static screen recordings can average a few kbps, which the H.264
-    # encoder rejects (MF_E_TRANSFORM_TYPE_NOT_SET); keep a 1 Mbps floor.
-    if($video.Bitrate -gt 0){$profile.Video.Bitrate=[Math]::Max([uint32]$video.Bitrate,[uint32]1000000)}
+    if($video.Bitrate -gt 0){$profile.Video.Bitrate=$video.Bitrate}
     $stage='TrimRender'
     $failure=Await-Operation ($composition.RenderToFileAsync($output,[Windows.Media.Editing.MediaTrimmingPreference]::Precise,$profile)) ([Windows.Media.Transcoding.TranscodeFailureReason]) ([double])
     if($failure -ne [Windows.Media.Transcoding.TranscodeFailureReason]::None){throw ('Windows could not encode this recording: '+$failure)}

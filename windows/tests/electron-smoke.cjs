@@ -55,8 +55,6 @@ async function main(){
   report.rendererErrors=[];page.on('pageerror',error=>{if(report.rendererErrors.length<20)report.rendererErrors.push(String(error.stack||error.message).slice(0,2000));});
   report.rendererConsole=[];page.on('console',entry=>{if(entry.type()==='error'&&report.rendererConsole.length<20)report.rendererConsole.push(entry.text().slice(0,2000));});
   await until(()=>application.evaluate(()=>!!global.__clipboardLineTest),Boolean);
-  // The suite exercises three-row shelves; fresh installs now open Images only, as on macOS.
-  await application.evaluate(()=>global.__clipboardLineTest.command('setSettings',{patch:{visibleKinds:['image','text','link']}}));
   const nativeInitialization=await application.evaluate(async()=>{try{return{focus:await global.__clipboardLineTest.native.capture()};}catch(error){return{error:error.message};}});assert.ok(!nativeInitialization.error,JSON.stringify(nativeInitialization));check('native UIA focus bridge initializes Microsoft system providers');
   const nativeFocusPolicy=await application.evaluate(()=>global.__clipboardLineTest.native.selfTestFocusPolicy());assert.equal(nativeFocusPolicy.ok,true);assert.equal(nativeFocusPolicy.passed,12);assert.equal(nativeFocusPolicy.capturePassed,30);check('native IA2 policy rejects readonly/protected/disabled/defunct and bounded BUSY-document capture keeps the first stable editable identity');
   await appIconAcceptance({application,check,output});

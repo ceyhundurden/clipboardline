@@ -15,7 +15,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 KINDS = ['image', 'text', 'link']
 FIELDS = {'activeKind', 'focused', 'selected', 'visibleKinds', 'searchEditing'}
-ACTIONS = {'open', 'close', 'up', 'down', 'left', 'right', 'toggle', 'switchShelf', 'openSearch', 'finishSearch', 'remap', 'key'}
+ACTIONS = {'open', 'close', 'up', 'down', 'left', 'right', 'toggle', 'openSearch', 'finishSearch', 'remap', 'key'}
 PLATFORMS = {'macos': ('darwin', 'model'), 'windows': ('win32', 'renderer')}
 
 
@@ -105,9 +105,7 @@ def load_contract(path):
         require(isinstance(identifier, str) and re.fullmatch(r'[a-z0-9][a-z0-9-]*', identifier) and
                 identifier not in scenario_ids, 'Missing, invalid or duplicate shared scenario ID')
         scenario_ids.add(identifier)
-        # visibleKinds null starts from each platform's default shelves.
-        require(isinstance(scenario.get('itemSet'), str) and scenario['itemSet'] in item_sets and
-                (scenario.get('visibleKinds', 0) is None or valid_ordered_kinds(scenario.get('visibleKinds'))),
+        require(isinstance(scenario.get('itemSet'), str) and scenario['itemSet'] in item_sets and valid_ordered_kinds(scenario.get('visibleKinds')),
                 'Scenario fixture or visible shelf scope is invalid')
         pinned = scenario.get('pinnedOnlyKinds')
         require(isinstance(pinned, list) and all(isinstance(kind, str) and kind in KINDS for kind in pinned) and

@@ -70,11 +70,8 @@ import XCTest
             }
             let line = Line(defaults: fixture.defaults, inbox: fixture.inbox, now: { fixture.date }, breeze: false,
                 copyImage: { _ in }, copyText: { _ in }, library: store)
-            // A null visibleKinds keeps the Line's own default presentation.
-            if !(scenario["visibleKinds"] is NSNull) {
-                let visible = try required(scenario["visibleKinds"], [String].self).map { try shelf($0) }
-                line.setPresentation(try XCTUnwrap(ShelfPresentation.containing(Set(visible))), requestFocus: false)
-            }
+            let visible = try required(scenario["visibleKinds"], [String].self).map { try shelf($0) }
+            line.setPresentation(try XCTUnwrap(ShelfPresentation.containing(Set(visible))), requestFocus: false)
             for kind in try required(scenario["pinnedOnlyKinds"], [String].self) {
                 switch try shelf(kind) { case .images: line.setFavoritesOnly(true); case .texts: line.texts.setFavoritesOnly(true); case .links: line.links.setFavoritesOnly(true) }
             }
@@ -99,7 +96,6 @@ import XCTest
                 case "left": _ = keyboard.handle(try key(123))
                 case "right": _ = keyboard.handle(try key(124))
                 case "toggle": _ = line.toggleShelf(try shelf(try required(step["kind"], String.self)))
-                case "switchShelf": _ = keyboard.handle(try key(48, characters: "\t"))
                 case "openSearch": line.beginShelfSearch()
                 case "finishSearch":
                     line.finishShelfSearchEditing(line.activeShelf)

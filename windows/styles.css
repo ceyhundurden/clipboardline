@@ -88,20 +88,6 @@ body.view-shelves, body.view-shelves #app, body.view-shelves .shell, .shelf-shel
 .shelf-tools kbd { height: 15px; min-width: 17px; font-size: 8px; }
 .line, svg.rope { position: absolute; z-index: 0; top: 0; left: 0; width: 100%; height: 96px; overflow: visible; border: 0; background: none; pointer-events: none; }
 svg.rope path, svg.line path { fill: none; stroke: #a3a3a9; stroke-width: 1.1; vector-effect: non-scaling-stroke; filter: drop-shadow(0 1px 1px #0007); }
-/* A translucent band behind each shelf keeps the rope and cards readable on light or busy wallpapers. */
-.shelves .shelf::before { content: ""; position: absolute; z-index: 0; top: 0; left: 0; right: 0; height: min(100%, calc(70px + max(var(--photo-height) + 40px, var(--text-height)))); background: linear-gradient(180deg, #121216c2 0%, #16161a99 62%, #16161a00 100%); pointer-events: none; }
-.shelves svg.rope path { stroke: #ececf0; stroke-width: 2.6; filter: drop-shadow(0 2px 2px #000b); }
-.shelves .active-shelf svg.rope path { stroke: var(--shelf-accent); }
-.shelves .shelf-title { height: 26px; min-height: 26px; padding: 4px 11px; gap: 6px; font-size: 12px; box-shadow: 0 2px 8px #0006; }
-.shelves .shelf-count { font-size: 11px; }
-.shelves .card { border-color: #ffffff38; box-shadow: 0 10px 22px #0007; }
-.shelves .card.kind-image > img.strip { width: calc(var(--card-width) - 6px); max-width: none; height: var(--strip-height); object-fit: cover; object-position: left center; }
-/* The focused photo's loupe opens below its row: one fixed, visual-only element that never covers a card. */
-.shelf-loupe { position: fixed; z-index: 30; padding: 4px; border: 1.5px solid #ffffffd0; border-radius: 14px; background: #1c1c20f2; box-shadow: 0 14px 34px #000a; object-fit: contain; pointer-events: none; animation: loupe-in .14s ease-out; }
-.shelf-loupe.strip { object-fit: cover; object-position: left center; }
-@keyframes loupe-in { from { opacity: 0; transform: translateY(-6px); } }
-@media (prefers-reduced-motion: reduce) { .shelf-loupe { animation: none; } }
-.shelves .card.kind-image > img, .shelves .image-frame, .shelves .photo-frame { border: 1.5px solid #ffffffb3; box-shadow: 0 10px 24px #0008, inset 0 0 0 1px #0003; }
 .cards { position: absolute; inset: 0; display: flex; align-items: flex-start; gap: 24px; overflow-x: auto; overflow-y: hidden; padding: 46px 24px 28px; min-height: 0; scrollbar-width: none; scroll-behavior: smooth; }
 .cards::-webkit-scrollbar { display: none; }
 .card { position: relative; flex: 0 0 var(--card-width); width: var(--card-width); min-width: var(--card-width); max-width: var(--card-width); height: var(--text-height); margin-top: var(--sag, 0px); padding: 21px 10px 10px; display: flex; flex-direction: column; gap: 5px; border: 1px solid #ffffff23; border-radius: 16px; background: #333336ed; box-shadow: 0 6px 13px #0003; text-align: left; cursor: pointer; user-select: none; outline: 0; transition: box-shadow .15s ease, background .15s ease; }

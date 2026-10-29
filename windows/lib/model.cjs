@@ -10,7 +10,7 @@ const MANAGED_MEDIA=/^[a-f0-9]{64}\.(png|mp4|mov)$/;
 
 const KINDS = ['image', 'text', 'link'];
 const DEFAULTS = Object.freeze({
-  visibleKinds: ['image'], captureText: false, captureImages: false, captureLinks: true,fetchLinkMetadata:true,
+  visibleKinds: KINDS, captureText: false, captureImages: false, captureLinks: true,fetchLinkMetadata:true,
   retentionDays: {image: 30, text: 30, link: 30},
   shortcuts: {toggle: 'Control+Alt+T', search: 'Control+Alt+S', library:'', copyLatest:'', screenshot: 'Control+Alt+A'},
   localShortcuts: {},
