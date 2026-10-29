@@ -76,11 +76,11 @@ function tagAttributes(html, start) {
 // text inside them is never taken as a title. Every cursor only moves forward, so
 // the work stays linear.
 function documentTitle(html) {
-  const tokens = /<(title|script|style)\b|<!--|<[a-z][\w:-]*/gi, closing = /<\/title\s*>/gi; let close = null, match;
+  const tokens = /<(title|script|style)(?=[\s/>])|<!--|<[a-z][\w:-]*/gi, closing = /<\/title\s*>/gi; let close = null, match;
   while ((match = tokens.exec(html))) {
     if (match[0] === '<!--') { const end = html.indexOf('-->', tokens.lastIndex); if (end < 0) return ''; tokens.lastIndex = end + 3; continue; }
     if (!match[1]) { tokens.lastIndex = tagAttributes(html, tokens.lastIndex).end; continue; }
-    if (match[1].toLowerCase() !== 'title') { const end = new RegExp('</' + match[1] + '\\s*>', 'gi'); end.lastIndex = tokens.lastIndex; if (!end.exec(html)) return ''; tokens.lastIndex = end.lastIndex; continue; }
+    if (match[1].toLowerCase() !== 'title') { const tag = tagAttributes(html, tokens.lastIndex); if (!tag.ok) { tokens.lastIndex = tag.end; continue; } const end = new RegExp('</' + match[1] + '\\s*>', 'gi'); end.lastIndex = tag.end; if (!end.exec(html)) return ''; tokens.lastIndex = end.lastIndex; continue; }
     const tag = tagAttributes(html, tokens.lastIndex); if (!tag.ok) { tokens.lastIndex = tag.end; continue; }
     if (!close || close.index < tag.end) { closing.lastIndex = tag.end; close = closing.exec(html); if (!close) return ''; }
     if (close.index - tag.end <= 2000) return html.slice(tag.end, close.index);
@@ -88,8 +88,10 @@ function documentTitle(html) {
   return '';
 }
 function meta(html, name) {
-  for (const match of html.matchAll(/<meta\b/gi)) {
-    const tag = tagAttributes(html, match.index + match[0].length); if (!tag.ok) continue;
+  // Resume after each parsed tag, so a quoted '<meta' inside an attribute is not a tag.
+  const tags = /<meta(?=[\s/>])/gi; let match;
+  while ((match = tags.exec(html))) {
+    const tag = tagAttributes(html, tags.lastIndex); tags.lastIndex = tag.end; if (!tag.ok) continue;
     const attributes = {};
     for (const attr of tag.text.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) attributes[attr[1].toLowerCase()] = attr[2] ?? attr[3];
     if ([attributes.property, attributes.name].includes(name)) return entities(attributes.content || '').slice(0, 1000);
