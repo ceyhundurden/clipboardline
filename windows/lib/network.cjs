@@ -81,7 +81,7 @@ function walkTags(html, xhtml, visit) {
   while ((match = tokens.exec(html))) {
     if (match[0] === '<!--') { const end = html.indexOf('-->', tokens.lastIndex); if (end < 0) return; tokens.lastIndex = end + 3; continue; }
     const name = match[1].toLowerCase(), tag = tagAttributes(html, tokens.lastIndex); tokens.lastIndex = tag.end; if (!tag.ok) continue;
-    if ((name === 'script' || name === 'style') && !(xhtml && tag.text.endsWith('/'))) { const end = new RegExp('</' + name + '\s*>', 'gi'); end.lastIndex = tag.end; if (!end.exec(html)) return; tokens.lastIndex = end.lastIndex; continue; }
+    if ((name === 'script' || name === 'style') && !(xhtml && tag.text.endsWith('/'))) { const end = new RegExp('</' + name + '\\s*>', 'gi'); end.lastIndex = tag.end; if (!end.exec(html)) return; tokens.lastIndex = end.lastIndex; continue; }
     const result = visit(name, tag); if (result !== undefined) return result;
   }
 }
