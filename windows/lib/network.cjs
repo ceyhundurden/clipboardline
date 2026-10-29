@@ -70,12 +70,15 @@ function tagAttributes(html, start) {
   }
   return null;
 }
-// Uses the first title whose closing tag follows within 2000 characters. Start
-// tags and the closing-tag cursor both only move forward, so the work stays linear.
+// Uses the first title whose closing tag follows within 2000 characters, skipping
+// script, style and comment bodies so text inside them is never taken as a title.
+// Every cursor only moves forward, so the work stays linear.
 function documentTitle(html) {
-  const closing = /<\/title\s*>/gi; let close = null;
-  for (const match of html.matchAll(/<title\b/gi)) {
-    const tag = tagAttributes(html, match.index + match[0].length); if (!tag) continue;
+  const tokens = /<title\b|<(script|style)\b|<!--/gi, closing = /<\/title\s*>/gi; let close = null, match;
+  while ((match = tokens.exec(html))) {
+    if (match[0] === '<!--') { const end = html.indexOf('-->', tokens.lastIndex); if (end < 0) return ''; tokens.lastIndex = end + 3; continue; }
+    if (match[1]) { const end = new RegExp('</' + match[1] + '\\s*>', 'gi'); end.lastIndex = tokens.lastIndex; if (!end.exec(html)) return ''; tokens.lastIndex = end.lastIndex; continue; }
+    const tag = tagAttributes(html, tokens.lastIndex); if (!tag) continue;
     if (!close || close.index < tag.end) { closing.lastIndex = tag.end; close = closing.exec(html); if (!close) return ''; }
     if (close.index - tag.end <= 2000) return html.slice(tag.end, close.index);
   }

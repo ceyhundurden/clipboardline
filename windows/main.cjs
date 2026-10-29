@@ -286,7 +286,7 @@ async function recognize(id,quiet=false) {
 // folder names survive any console code page. Each reconfigure re-resolves it
 // off the main path; watchers are rebuilt only when the folder changes, and a
 // failed lookup retries after a minute.
-let systemScreenshots=null,resolvingScreenshots=false,screenshotRetry=null;
+let watchedFolders=new Set(),systemScreenshots=null,resolvingScreenshots=false,screenshotRetry=null;
 function resolveSystemScreenshotFolder() {
   if(resolvingScreenshots)return;resolvingScreenshots=true;clearTimeout(screenshotRetry);
   const ready=folder=>{try{if(folder&&path.isAbsolute(folder)){fs.mkdirSync(folder,{recursive:true});if(fs.statSync(folder).isDirectory())return folder;}}catch{}return null;};
@@ -310,7 +310,10 @@ function configureWatchers(resolve=true) {
   const system=systemScreenshotFolder(resolve);
   const folders=[...store.data.settings.watchFolders];
   if(system&&!folders.some(folder=>path.resolve(folder).toLowerCase()===path.resolve(system).toLowerCase()))folders.push(system);
-  for(const folder of folders){try{if(!fs.statSync(folder).isDirectory())continue;const timers=new Map();const watcher=fs.watch(folder,(_event,name)=>{if(!name||!/[.](png|jpe?g|webp|bmp|mov|mp4)$/i.test(name))return;clearTimeout(timers.get(name));timers.set(name,setTimeout(()=>{timers.delete(name);try{const file=path.join(folder,path.basename(name));const item=importFile(file);Promise.resolve(item).then(record=>{broadcast();if(store.data.settings.openAfterScreenshot)void show('shelves',{selectId:record.id,kind:'image'});}).catch(()=>{});}catch{}},700));});watcher.on('error',()=>{});watchers.push(watcher);}catch{}}
+  // A debounced import still pending when its folder stops being watched (for
+  // example the screenshot setting is turned off) is dropped when it fires.
+  watchedFolders=new Set(folders.map(folder=>path.resolve(folder).toLowerCase()));
+  for(const folder of folders){try{if(!fs.statSync(folder).isDirectory())continue;const timers=new Map();const watcher=fs.watch(folder,(_event,name)=>{if(!name||!/[.](png|jpe?g|webp|bmp|mov|mp4)$/i.test(name))return;clearTimeout(timers.get(name));timers.set(name,setTimeout(()=>{timers.delete(name);if(!watchedFolders.has(path.resolve(folder).toLowerCase()))return;try{const file=path.join(folder,path.basename(name));const item=importFile(file);Promise.resolve(item).then(record=>{broadcast();if(store.data.settings.openAfterScreenshot)void show('shelves',{selectId:record.id,kind:'image'});}).catch(()=>{});}catch{}},700));});watcher.on('error',()=>{});watchers.push(watcher);}catch{}}
 }
 let shortcutRegistry,shortcutRecording=null;
 function finishShortcutRecording(token=null){
